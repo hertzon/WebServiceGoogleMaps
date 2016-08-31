@@ -1,12 +1,25 @@
 package com.coltrack.webservicegooglemaps;
 
+import android.Manifest;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.location.GpsSatellite;
+import android.location.GpsStatus;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.location.LocationProvider;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -21,6 +34,8 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Iterator;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     TextView textView_latitud;
@@ -29,6 +44,10 @@ public class MainActivity extends AppCompatActivity {
     TextView textView_resultado;
     String LOGTAG="Debug";
     String devuelve;
+    Location location;
+    LocationManager locationManager;
+    LocationListener locationListener;
+    AlertDialog alert = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,7 +68,117 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        ////////////////////////////////////////////////////////////////////////////////
+        //Gestion de GPS
+        locationManager=(LocationManager)getSystemService(LOCATION_SERVICE);
+        //Revisamos si esta encendido el GPS
+        if (!locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)){
+            AlertNoGPS();
+        }
+        ////////////////////////////////////////////////////////////////////////////////
+
+
+
+//        List<String> listaProvedores=locationManager.getAllProviders();
+//        for (int i=0;i<listaProvedores.size();i++){
+//            Log.i(LOGTAG,"Lista Provedores: "+i+":"+listaProvedores.get(i));
+//        }
+        //Para version posterior al API23
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(getApplicationContext(),"Debes autorizar los permisos de GPS...",Toast.LENGTH_SHORT).show();
+                return;
+            } else {
+                location = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+            }
+        } else {
+            location = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+        }
+        ////////////////////////////////////////////////////////////////////////////////
+
+
+
+        locationListener=new LocationListener() {
+            @Override
+            public void onLocationChanged(Location location) {
+
+                mostrarLocalizacion(location);
+
+
+
+
+
+                GpsStatus gpsStatus = locationManager.getGpsStatus(null);
+                if(gpsStatus != null) {
+                    Iterable<GpsSatellite>satellites = gpsStatus.getSatellites();
+                    Iterator<GpsSatellite> sat = satellites.iterator();
+                    String lSatellites = null;
+                    int i = 0;
+                    while (sat.hasNext()) {
+                        GpsSatellite satellite = sat.next();
+                        lSatellites = "Satellite" + (i++) + ": "
+                                + satellite.getPrn() + ","
+                                + satellite.usedInFix() + ","
+                                + satellite.getSnr() + ","
+                                + satellite.getAzimuth() + ","
+                                + satellite.getElevation()+ "\n\n";
+
+                        Log.i(LOGTAG, "nsatelites" + lSatellites);
+                    }
+                }else{
+                    Log.i(LOGTAG,"GpsStatus null");
+                }
+            }
+
+            @Override
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+
+            }
+
+            @Override
+            public void onProviderEnabled(String provider) {
+
+            }
+
+            @Override
+            public void onProviderDisabled(String provider) {
+
+            }
+        };
+
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,0,0,locationListener);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,0,0,locationListener);
+
     }
+
+    private void AlertNoGPS() {
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage("Servicio de ubicacion desactivada, ¿Desea activarla?")
+                .setCancelable(false)
+                .setPositiveButton("Si", new DialogInterface.OnClickListener() {
+                    public void onClick(@SuppressWarnings("unused") final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
+                        startActivity(new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+                    }
+                })
+                .setNegativeButton("No", new DialogInterface.OnClickListener() {
+                    public void onClick(final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
+                        dialog.cancel();
+                    }
+                });
+        alert = builder.create();
+        alert.show();
+    }
+
+    public void mostrarLocalizacion(Location loc) {
+        if (loc!=null){
+            ObtenerWebService hiloconexion=new ObtenerWebService();
+            hiloconexion.execute(String.valueOf(loc.getLatitude()),String.valueOf(loc.getLongitude()));
+        }
+
+
+    }
+
     public class ObtenerWebService extends AsyncTask<String,Integer,String>{
         @Override
         protected String doInBackground(String... params) {
@@ -123,6 +252,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         protected void onPostExecute(String aVoid) {
             textView_resultado.setText(aVoid);
+            Log.i(LOGTAG,"GPS:"+aVoid);
             //super.onPostExecute(aVoid);
 
         }
@@ -131,5 +261,40 @@ public class MainActivity extends AppCompatActivity {
         protected void onPreExecute() {
             super.onPreExecute();
         }
+    }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+                return;
+            } else {
+                locationManager.removeUpdates(locationListener);
+            }
+        } else {
+            locationManager.removeUpdates(locationListener);
+        }
+
+
+    }
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+                return;
+            } else {
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
+            }
+        } else {
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
+        }
+
+
+
     }
 }
