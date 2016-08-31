@@ -38,9 +38,7 @@ import java.util.Iterator;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
-    TextView textView_latitud;
-    TextView textView_longitud;
-    Button button_resultado;
+
     TextView textView_resultado;
     String LOGTAG="Debug";
     String devuelve;
@@ -53,21 +51,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        textView_latitud=(TextView)findViewById(R.id.editText_latitud);
-        textView_longitud=(TextView)findViewById(R.id.editText_longitud);
-        button_resultado=(Button)findViewById(R.id.button_resultado);
         textView_resultado=(TextView)findViewById(R.id.textView_resultado);
-
-        button_resultado.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                ObtenerWebService webService1=new ObtenerWebService();
-                webService1.execute(textView_latitud.getText().toString(),textView_longitud.getText().toString());
-
-            }
-        });
-
         ////////////////////////////////////////////////////////////////////////////////
         //Gestion de GPS
         locationManager=(LocationManager)getSystemService(LOCATION_SERVICE);
@@ -76,9 +60,6 @@ public class MainActivity extends AppCompatActivity {
             AlertNoGPS();
         }
         ////////////////////////////////////////////////////////////////////////////////
-
-
-
 //        List<String> listaProvedores=locationManager.getAllProviders();
 //        for (int i=0;i<listaProvedores.size();i++){
 //            Log.i(LOGTAG,"Lista Provedores: "+i+":"+listaProvedores.get(i));
@@ -97,18 +78,14 @@ public class MainActivity extends AppCompatActivity {
         }
         ////////////////////////////////////////////////////////////////////////////////
 
-
-
+        if (location!=null){
+            Log.i(LOGTAG,"Mostrando ubicacion inicial...");
+            mostrarLocalizacion(location);
+        }
         locationListener=new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
-
                 mostrarLocalizacion(location);
-
-
-
-
-
                 GpsStatus gpsStatus = locationManager.getGpsStatus(null);
                 if(gpsStatus != null) {
                     Iterable<GpsSatellite>satellites = gpsStatus.getSatellites();
@@ -172,14 +149,14 @@ public class MainActivity extends AppCompatActivity {
 
     public void mostrarLocalizacion(Location loc) {
         if (loc!=null){
-            ObtenerWebService hiloconexion=new ObtenerWebService();
+            ObtenerWebServiceGoogleMaps hiloconexion=new ObtenerWebServiceGoogleMaps();
             hiloconexion.execute(String.valueOf(loc.getLatitude()),String.valueOf(loc.getLongitude()));
         }
 
 
     }
 
-    public class ObtenerWebService extends AsyncTask<String,Integer,String>{
+    public class ObtenerWebServiceGoogleMaps extends AsyncTask<String,Integer,String>{
         @Override
         protected String doInBackground(String... params) {
             //https://maps.googleapis.com/maps/api/geocode/json?latlng=
